@@ -1,0 +1,99 @@
+#include "mbed.h"
+ 
+// Network interface
+NetworkInterface *net;
+ Serial pc(PA_9,PA_10,115200);
+// Socket demo
+int main() {
+    int remaining;
+    int rcount;
+    char *p;
+    char *buffer = new char[256];
+    nsapi_size_or_error_t r;
+ 
+    // Bring up the ethernet interface
+    pc.printf("Mbed OS Socket example\n");
+ 
+#ifdef MBED_MAJOR_VERSION
+    pc.printf("Mbed OS version: %d.%d.%d\n\n", MBED_MAJOR_VERSION, MBED_MINOR_VERSION, MBED_PATCH_VERSION);
+#endif
+ 
+    net = NetworkInterface::get_default_instance();
+ 
+    if (!net) {
+        pc.printf("Error! No network inteface found.\n");
+        return 0;
+    }
+ 
+    r = net->connect();
+    if (r != 0) {
+        pc.printf("Error! net->connect() returned: %d\n", r);
+        return r;
+    }
+ 
+    // Show the network address
+    const char *ip = net->get_ip_address();
+    const char *netmask = net->get_netmask();
+    const char *gateway = net->get_gateway();
+    pc.printf("IP address: %s\n", ip ? ip : "None");
+    pc.printf("Netmask: %s\n", netmask ? netmask : "None");
+    pc.printf("Gateway: %s\n", gateway ? gateway : "None");
+ 
+    // Open a socket on the network interface, and create a TCP connection to mbed.org
+    TCPSocket socket;
+    // Send a simple http request
+    // char sbuffer[] = "GET / HTTP/1.1\r\nHost: api.ipify.org\r\nConnection: close\r\n\r\n";
+    char sbuffer[] = {0x00,0x0D,0x00,0x00,0x00,0x06,0x01,0x03,0x00,0x00,0x00,0x04};
+    nsapi_size_t size = strlen(sbuffer);
+ 
+    r = socket.open(net);
+    if (r != 0) {
+        pc.printf("Error! socket.open() returned: %d\n", r);
+    }
+ 
+    r = socket.connect("api.ipify.org", 80);
+    if (r != 0) {
+        pc.printf("Error! socket.connect() returned: %d\n", r);
+        goto DISCONNECT;
+    }
+ 
+    // Loop until whole request send
+    while(size) {
+        r = socket.send(sbuffer+r, size);
+        if (r < 0) {
+            pc.printf("Error! socket.send() returned: %d\n", r);
+            goto DISCONNECT;
+        }
+        size -= r;
+        pc.printf("sent %d [%.*s]\n", r, strstr(sbuffer, "\r\n")-sbuffer, sbuffer);
+    }
+ 
+    // Receieve an HTTP response and print out the response line
+    remaining = 256;
+    rcount = 0;
+    p = buffer;
+    while (0 < (r = socket.recv(p, remaining))) {
+        p += r;
+        rcount += r;
+        remaining -= r;
+    }
+    if (r < 0) {
+        pc.printf("Error! socket.recv() returned: %d\n", r);
+        goto DISCONNECT;
+    }
+ 
+    pc.printf("recv %d [%.*s]\n", rcount, strstr(buffer, "\r\n")-buffer, buffer);
+ 
+    // The api.ipify.org service also gives us the device's external IP address
+    p = strstr(buffer, "\r\n\r\n")+4;
+    pc.printf("External IP address: %.*s\n", rcount-(p-buffer), p);
+    delete[] buffer;
+ 
+DISCONNECT:
+    // Close the socket to return its memory and bring down the network interface
+    socket.close();
+ 
+    // Bring down the ethernet interface
+    net->disconnect();
+    pc.printf("Done\n");
+}
