@@ -1,7 +1,8 @@
 #include "mbed.h"
 #include "EthernetInterface.h"
+
+#include "ModbusTCP.h"
 #include "ModbusMaster.h"
-#include "ModBusTCP.h"
 
 EthernetInterface eth;
 ModbusTCP modbustcp_s;
@@ -51,11 +52,14 @@ int main()
     modbustcp_s.start(&eth,502);
     pc.printf("ModbusTCP server started\r\r\n");
 
+    thread_update_registers.start(task_update_registers);
+    thread_modbusrtu_routine.start(task_modbusrtu_routine);
+
     while(1)
     {
-        LedGreen = 0;
+        // LedGreen = 0;
         Thread::wait(500);
-        LedGreen = 1;
+        // LedGreen = 1;
         Thread::wait(500);
     }
     return 1;
