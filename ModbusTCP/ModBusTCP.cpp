@@ -1,5 +1,5 @@
 
-#include "ModBus-TCP.h"
+#include "ModBusTCP.h"
 
 ModbusTCP * ModbusTCP::_inst;
 

@@ -1,7 +1,7 @@
 #include "mbed.h"
 #include "EthernetInterface.h"
 
-#include "Modbus-TCP.h"
+#include "ModbusTCP.h"
 #include "ModbusMaster.h"
 
 EthernetInterface eth;

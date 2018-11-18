@@ -1,6 +1,6 @@
 
-#ifndef MODBUS_TCP_H
-#define MODBUS_TCP
+#ifndef MODBUSTCP_H
+#define MODBUSTCP
 
 #include "mbed.h"
 #include "rtos.h"
