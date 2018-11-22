@@ -88,52 +88,110 @@ void task_modbustcp_sync()
 void task_modbus_rtu_tcp_sync()
 {
     uint8_t rd_result;
-    uint16_t MBdata[0x16];
+    uint16_t MBdata_s1[0x16], MBdata_s2[0x16];
+    uint8_t counter_s1 = 0, counter_s2 = 0;
     /*Add holding regs*/
-    modbustcp_s.addHreg(0,0);   //Frequency
-    modbustcp_s.addHreg(1,0);   //Voltage
-    modbustcp_s.addHreg(2,0);   //Current
-    modbustcp_s.addHreg(3,0);   //Total energy high byte
-    modbustcp_s.addHreg(4,0);   //Total energy low byte
-    modbustcp_s.addHreg(5,0);   //Active power
-    modbustcp_s.addHreg(6,0);   //Reactive power
-    modbustcp_s.addHreg(7,0);   //Power factor
+    modbustcp_s.addHreg(0,0);   //Sensor 1: Frequency
+    modbustcp_s.addHreg(1,0);   //Sensor 1: Voltage
+    modbustcp_s.addHreg(2,0);   //Sensor 1: Current
+    modbustcp_s.addHreg(3,0);   //Sensor 1: Total energy high byte
+    modbustcp_s.addHreg(4,0);   //Sensor 1: Total energy low byte
+    modbustcp_s.addHreg(5,0);   //Sensor 1: Active power
+    modbustcp_s.addHreg(6,0);   //Sensor 1: Reactive power
+    modbustcp_s.addHreg(7,0);   //Sensor 1: Power factor
+
+    modbustcp_s.addHreg(8,0);   //Sensor 2: Frequency
+    modbustcp_s.addHreg(9,0);   //Sensor 2: Voltage
+    modbustcp_s.addHreg(10,0);   //Sensor 2: Current
+    modbustcp_s.addHreg(11,0);   //Sensor 2: Total energy high byte
+    modbustcp_s.addHreg(12,0);   //Sensor 2: Total energy low byte
+    modbustcp_s.addHreg(13,0);   //Sensor 2: Active power
+    modbustcp_s.addHreg(14,0);   //Sensor 2: Reactive power
+    modbustcp_s.addHreg(15,0);   //Sensor 2: Power factor
+
+    /*Error flags*/
+    modbustcp_s.addHreg(16,0);   //Sensor 1 error (if error then 1)
+    modbustcp_s.addHreg(17,0);  //Sensor 2 error 
+    modbustcp_s.addHreg(18,0);  //Sensor 1 counter (max 15)
+    modbustcp_s.addHreg(19,0);  //Sensor 2 counter
+
+    Thread::wait(1000);
 
     for(;;)
     {
         rd_result = modbusrtu_m_s1.readHoldingRegisters(0x00, 0x16);
         if (rd_result == modbusrtu_m_s1.ku8MBSuccess)
         {
-            for(int i=0x00;i<0x16;i++){
-                MBdata[i] = modbusrtu_m_s1.getResponseBuffer(i);
-            }
-            uint32_t l_total_energy_u32 = (uint32_t)MBdata[0x00]<<16|MBdata[0x01];
+            /*Get data from S1*/
+            for(int i=0x00;i<0x16;i++) MBdata_s1[i] = modbusrtu_m_s1.getResponseBuffer(i);
+            uint32_t l_total_energy_s1 = (uint32_t)MBdata_s1[0x00]<<16|MBdata_s1[0x01];
             
             /*Sync TCP with RTU*/
-            modbustcp_s.Hreg(0,MBdata[0x11]);
-            modbustcp_s.Hreg(1,MBdata[0x0C]);
-            modbustcp_s.Hreg(2,MBdata[0x0D]);
-            modbustcp_s.Hreg(3,MBdata[0x00]);
-            modbustcp_s.Hreg(4,MBdata[0x01]);
-            modbustcp_s.Hreg(5,MBdata[0x0E]);
-            modbustcp_s.Hreg(6,MBdata[0x0F]);
-            modbustcp_s.Hreg(7,MBdata[0x10]);
+            modbustcp_s.Hreg(0,MBdata_s1[0x11]);
+            modbustcp_s.Hreg(1,MBdata_s1[0x0C]);
+            modbustcp_s.Hreg(2,MBdata_s1[0x0D]);
+            modbustcp_s.Hreg(3,MBdata_s1[0x00]);
+            modbustcp_s.Hreg(4,MBdata_s1[0x01]);
+            modbustcp_s.Hreg(5,MBdata_s1[0x0E]);
+            modbustcp_s.Hreg(6,MBdata_s1[0x0F]);
+            modbustcp_s.Hreg(7,MBdata_s1[0x10]);
+            modbustcp_s.Hreg(16,0);
+
+            /*After every successful read, count up 1 to 15*/
+            if(counter_s1 == 16) counter_s1 = 0;
+            modbustcp_s.Hreg(18,counter_s1++);
 
             /*Print to debug*/
+            
             // pc.printf("Freq: %.02f Hz | Volt: %.01f V | Curr: %.02f A | Total: %.02f KWh | Act: %.03f KW | Rea: %.03f Kvar | PF: %.03f\r\r\n",
-            //     ((float)MBdata[0x11])*0.01,                 //Frequency
-            //     ((float)MBdata[0x0C])*0.1,                  //Voltage
-            //     ((float)MBdata[0x0D])*0.01,                 //Current
-            //     ((float)l_total_energy_u32)*0.01,           //Total energy
-            //     ((float)((int16_t)MBdata[0x0E]))*0.001,     //Active power
-            //     ((float)((int16_t)MBdata[0x0F]))*0.001,     //Reactive power
-            //     ((float)MBdata[0x10])*0.001);               //Power Factor
+            //     ((float)MBdata_s1[0x11])*0.01,                 //Frequency
+            //     ((float)MBdata_s1[0x0C])*0.1,                  //Voltage
+            //     ((float)MBdata_s1[0x0D])*0.01,                 //Current
+            //     ((float)l_total_energy_s1)*0.01,               //Total energy
+            //     ((float)((int16_t)MBdata_s1[0x0E]))*0.001,     //Active power
+            //     ((float)((int16_t)MBdata_s1[0x0F]))*0.001,     //Reactive power
+            //     ((float)MBdata_s1[0x10])*0.001);                //Power Factor
 
+            pc.printf("S1: Success\r\r\n");
         }
         else
         {
-            pc.printf("Error...\r\r\n");
+            modbustcp_s.Hreg(16,1);
+            pc.printf("S1: Fail\r\r\n");
         }
+
+        Thread::wait(100);
+
+        rd_result = modbusrtu_m_s2.readHoldingRegisters(0x00, 0x16);
+        if (rd_result == modbusrtu_m_s2.ku8MBSuccess)
+        {
+            /*Get data from S2*/
+            for(int i=0x00;i<0x16;i++) MBdata_s2[i] = modbusrtu_m_s2.getResponseBuffer(i);
+            uint32_t l_total_energy_s2 = (uint32_t)MBdata_s2[0x00]<<16|MBdata_s2[0x01];
+
+            /*Sync TCP with RTU*/
+            modbustcp_s.Hreg(8,MBdata_s1[0x11]);
+            modbustcp_s.Hreg(9,MBdata_s1[0x0C]);
+            modbustcp_s.Hreg(10,MBdata_s1[0x0D]);
+            modbustcp_s.Hreg(11,MBdata_s1[0x00]);
+            modbustcp_s.Hreg(12,MBdata_s1[0x01]);
+            modbustcp_s.Hreg(13,MBdata_s1[0x0E]);
+            modbustcp_s.Hreg(14,MBdata_s1[0x0F]);
+            modbustcp_s.Hreg(15,MBdata_s1[0x10]);
+            modbustcp_s.Hreg(17,0);
+
+            /*After every successful read, count up 1 to 15*/
+            if(counter_s2 == 16) counter_s2 = 0;
+            modbustcp_s.Hreg(19,counter_s2++);
+
+            pc.printf("S2: Success\r\r\n");
+        }
+        else
+        {
+            modbustcp_s.Hreg(17,1);
+            pc.printf("S2: Fail\r\r\n");
+        }
+
         Thread::wait(100);
     }  
 }
