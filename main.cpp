@@ -46,6 +46,7 @@ int main()
     eth.connect();
     pc.printf("MAC: %s\r\r\n",eth.get_mac_address());
     pc.printf("IP: %s\r\r\n",eth.get_ip_address());
+    pc.printf("Port: %d\r\r\n",MBTCP_PORT);
     pc.printf("\r\r\n");
 
     pc.printf("Initializing Modbus RTU master.\r\r\n");
@@ -69,9 +70,9 @@ int main()
 
     while(1)
     {
-        LedGreen = 0;
+        LedYellow = 0;
         Thread::wait(500);
-        LedGreen = 1;
+        LedYellow = 1;
         Thread::wait(500);
     }
     return 1;
@@ -120,6 +121,10 @@ void task_modbus_rtu_tcp_sync()
     for(;;)
     {
         rd_result = modbusrtu_m_s1.readHoldingRegisters(0x00, 0x16);
+        /*After every read, count up 1 to 15*/
+        if(counter_s1 == 16) counter_s1 = 0;
+        modbustcp_s.Hreg(18,counter_s1++);
+
         if (rd_result == modbusrtu_m_s1.ku8MBSuccess)
         {
             /*Get data from S1*/
@@ -137,10 +142,6 @@ void task_modbus_rtu_tcp_sync()
             modbustcp_s.Hreg(7,MBdata_s1[0x10]);
             modbustcp_s.Hreg(16,0);
 
-            /*After every successful read, count up 1 to 15*/
-            if(counter_s1 == 16) counter_s1 = 0;
-            modbustcp_s.Hreg(18,counter_s1++);
-
             /*Print to debug*/
             
             // pc.printf("Freq: %.02f Hz | Volt: %.01f V | Curr: %.02f A | Total: %.02f KWh | Act: %.03f KW | Rea: %.03f Kvar | PF: %.03f\r\r\n",
@@ -152,17 +153,21 @@ void task_modbus_rtu_tcp_sync()
             //     ((float)((int16_t)MBdata_s1[0x0F]))*0.001,     //Reactive power
             //     ((float)MBdata_s1[0x10])*0.001);                //Power Factor
 
-            pc.printf("S1: Success\r\r\n");
+            // pc.printf("S1: Success\r\r\n");
         }
         else
         {
             modbustcp_s.Hreg(16,1);
-            pc.printf("S1: Fail\r\r\n");
+            // pc.printf("S1: Fail\r\r\n");
         }
 
         Thread::wait(100);
 
         rd_result = modbusrtu_m_s2.readHoldingRegisters(0x00, 0x16);
+        /*After every read, count up 1 to 15*/
+        if(counter_s2 == 16) counter_s2 = 0;
+        modbustcp_s.Hreg(19,counter_s2++);
+
         if (rd_result == modbusrtu_m_s2.ku8MBSuccess)
         {
             /*Get data from S2*/
@@ -180,16 +185,12 @@ void task_modbus_rtu_tcp_sync()
             modbustcp_s.Hreg(15,MBdata_s1[0x10]);
             modbustcp_s.Hreg(17,0);
 
-            /*After every successful read, count up 1 to 15*/
-            if(counter_s2 == 16) counter_s2 = 0;
-            modbustcp_s.Hreg(19,counter_s2++);
-
-            pc.printf("S2: Success\r\r\n");
+            // pc.printf("S2: Success\r\r\n");
         }
         else
         {
             modbustcp_s.Hreg(17,1);
-            pc.printf("S2: Fail\r\r\n");
+            // pc.printf("S2: Fail\r\r\n");
         }
 
         Thread::wait(100);
