@@ -1,0 +1,6 @@
+data/SPI_TFT_ILI9341.cpp.i
+data/TextDisplay.cpp.i
+data/SPI_TFT_ILI9341.h.i
+data/GraphicsDisplay.h.i
+data/TextDisplay.h.i
+data/GraphicsDisplay.cpp.i

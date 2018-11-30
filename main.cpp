@@ -2,6 +2,20 @@
 #include "EthernetInterface.h"
 #include "ModbusMaster.h"
 #include "ModBusTCP.h"
+/*TFT*/
+#include <stdio.h>
+#include <string.h>
+#include "SPI_TFT_ILI9341.h"
+#include "Arial12x12.h"
+#include "Arial24x23.h"
+
+
+#define PIN_MOSI        PB_5
+#define PIN_MISO        PB_4
+#define PIN_SCLK        PA_5
+#define PIN_RS_TFT      PB_7
+#define PIN_CS_TFT      PA_4
+#define PIN_DC_TFT      PB_6
 
 /*Basic configurations*/
 DigitalOut LedRed(PD_12);
@@ -10,6 +24,10 @@ DigitalOut LedGreen(PD_14);
 DigitalOut LedYellow(PD_15);
 
 Serial pc(PA_9,PA_10,115200);
+
+//TFT interface
+SPI_TFT_ILI9341 TFT(PIN_MOSI, PIN_MISO, PIN_SCLK, PIN_CS_TFT, PIN_RS_TFT, PIN_DC_TFT,"TFT");
+
 
 /*Modbus TCP component*/
 #define MBTCP_PORT 502
@@ -25,18 +43,27 @@ BufferedSerial buffered_serial(PD_5,PA_3);
 ModbusMaster modbusrtu_m_s1, modbusrtu_m_s2;
 
 /*Global variables*/
+uint32_t uptime_count=0;
 
 /*OS Threads*/
 Thread thread_modbus_rtu_tcp_sync(osPriorityNormal,1024,NULL,"modbus_rtu_tcp_sync");
 Thread thread_modbustcp_sync(osPriorityNormal,OS_STACK_SIZE,NULL,"update_registers");
-void task_modbustcp_sync();
+void task_uptime_count();
 void task_modbus_rtu_tcp_sync();
 
 int main()
 {
-    LedBlue = 1;
+    LedRed = 1;
     wait_ms(100);
-    LedBlue = 0;
+    LedRed = 0;
+
+    TFT.claim(stdout);
+    TFT.background(Black);    // set background to black
+    TFT.foreground(White);    // set chars to white
+    TFT.cls();                // clear the screen
+    TFT.set_font((unsigned char*) Arial12x12);  // select the font
+    TFT.set_orientation(1);
+    TFT.locate(0,0);
 
     pc.printf("===========================\r\r\n");
     pc.printf("====mbed Modbus TCP-RTU====\r\r\n");
@@ -64,25 +91,43 @@ int main()
     modbustcp_s.start(&eth,MBTCP_PORT);
     pc.printf("ModbusTCP server started at port %d\r\r\n",MBTCP_PORT);
 
+    const char *ip = eth.get_ip_address();
+    const char *netmask = eth.get_netmask();
+    const char *gateway = eth.get_gateway();
+    TFT.printf("IP address: %s\n", ip ? ip : "None");
+    TFT.printf("Netmask: %s\n", netmask ? netmask : "None");
+    TFT.printf("Gateway: %s\n", gateway ? gateway : "None");
+    TFT.printf("MB_TCP Port: %d\n", MBTCP_PORT);
+    TFT.printf("MB_RTU Baudrate: %d\n",MBRTU_BAUD_RATE);
+    TFT.printf("MB_RTU Format: %d | %d | %d \n",MBRTU_DATA_LENGH,MBRTU_PARITY,MBRTU_STOP_BIT);
+    TFT.printf("Uptime: \n");
+
     /*Start threads here*/
-    // thread_modbustcp_sync.start(task_modbustcp_sync);
+    thread_modbustcp_sync.start(task_uptime_count);
     thread_modbus_rtu_tcp_sync.start(task_modbus_rtu_tcp_sync);
 
     while(1)
     {
-        LedYellow = 0;
-        Thread::wait(500);
-        LedYellow = 1;
-        Thread::wait(500);
+
     }
     return 1;
 }
 
-void task_modbustcp_sync()
-{
+void task_uptime_count()
+{   
+    uint32_t uptime_hour,uptime_minute,uptime_second,uptime_day;
+
     for(;;)
-    { 
-        Thread::wait(500);
+    {   
+        uptime_hour = (uptime_count/3600); 
+	    uptime_minute = (uptime_count -(3600*uptime_hour))/60;
+	    uptime_second = (uptime_count -(3600*uptime_hour)-(uptime_minute*60));
+        uptime_day = uptime_hour/24;
+
+        TFT.locate(55,72);
+        TFT.printf("%3d days, %2d:h %2d:m %2ds",uptime_day,uptime_hour,uptime_minute,uptime_second);
+        uptime_count++;
+        Thread::wait(1000);
     }
 }
 
@@ -116,10 +161,14 @@ void task_modbus_rtu_tcp_sync()
     modbustcp_s.addHreg(18,0);  //Sensor 1 counter (max 15)
     modbustcp_s.addHreg(19,0);  //Sensor 2 counter
 
+    /*Uptime count*/
+    modbustcp_s.addHreg(20,0);
+
     Thread::wait(1000);
 
     for(;;)
     {
+        LedYellow = !LedYellow.read(); //Status led
         rd_result = modbusrtu_m_s1.readHoldingRegisters(0x00, 0x16);
         /*After every read, count up 1 to 15*/
         if(counter_s1 == 16) counter_s1 = 0;
@@ -192,6 +241,8 @@ void task_modbus_rtu_tcp_sync()
             modbustcp_s.Hreg(17,1);
             // pc.printf("S2: Fail\r\r\n");
         }
+
+        modbustcp_s.Hreg(20,uptime_count);
 
         Thread::wait(100);
     }  
