@@ -33,6 +33,27 @@ SPI_TFT_ILI9341 TFT(PIN_MOSI, PIN_MISO, PIN_SCLK, PIN_CS_TFT, PIN_RS_TFT, PIN_DC
 #define MBTCP_PORT 502
 EthernetInterface eth;
 ModbusTCP modbustcp_s;
+/*Modbus TCP holding register define*/
+#define SEN1_FREQ 0
+#define SEN1_VOLT 1
+#define SEN1_CURR 2
+#define SEN1_ENGH 3
+#define SEN1_ENGL 4
+#define SEN1_ACTV 5
+#define SEN1_REAV 6
+#define SEN1_PWFR 7
+#define SEN1_ERRO 8
+#define SEN1_COUN 9
+#define SEN2_FREQ 10
+#define SEN2_VOLT 11
+#define SEN2_CURR 12
+#define SEN2_ENGH 13
+#define SEN2_ENGL 14
+#define SEN2_ACTV 15
+#define SEN2_REAV 16
+#define SEN2_PWFR 17
+#define SEN2_ERRO 18
+#define SEN2_COUN 19
 
 /*Modbus RTU component*/
 #define MBRTU_BAUD_RATE 9600
@@ -125,7 +146,7 @@ void task_uptime_count()
         uptime_day = uptime_hour/24;
 
         TFT.locate(55,72);
-        TFT.printf("%3d days, %2d:h %2d:m %2ds",uptime_day,uptime_hour,uptime_minute,uptime_second);
+        TFT.printf("%3d days %2dh %2dm %2ds",uptime_day,uptime_hour,uptime_minute,uptime_second);
         uptime_count++;
         Thread::wait(1000);
     }
@@ -136,43 +157,21 @@ void task_modbus_rtu_tcp_sync()
     uint8_t rd_result;
     uint16_t MBdata_s1[0x16], MBdata_s2[0x16];
     uint8_t counter_s1 = 0, counter_s2 = 0;
-    /*Add holding regs*/
-    modbustcp_s.addHreg(0,0);   //Sensor 1: Frequency
-    modbustcp_s.addHreg(1,0);   //Sensor 1: Voltage
-    modbustcp_s.addHreg(2,0);   //Sensor 1: Current
-    modbustcp_s.addHreg(3,0);   //Sensor 1: Total energy high byte
-    modbustcp_s.addHreg(4,0);   //Sensor 1: Total energy low byte
-    modbustcp_s.addHreg(5,0);   //Sensor 1: Active power
-    modbustcp_s.addHreg(6,0);   //Sensor 1: Reactive power
-    modbustcp_s.addHreg(7,0);   //Sensor 1: Power factor
+    /*Add 40 holding regs*/
+    for (int i=0;i<40;i++){
+        modbustcp_s.addHreg(i,0);
+    }
 
-    modbustcp_s.addHreg(8,0);   //Sensor 2: Frequency
-    modbustcp_s.addHreg(9,0);   //Sensor 2: Voltage
-    modbustcp_s.addHreg(10,0);   //Sensor 2: Current
-    modbustcp_s.addHreg(11,0);   //Sensor 2: Total energy high byte
-    modbustcp_s.addHreg(12,0);   //Sensor 2: Total energy low byte
-    modbustcp_s.addHreg(13,0);   //Sensor 2: Active power
-    modbustcp_s.addHreg(14,0);   //Sensor 2: Reactive power
-    modbustcp_s.addHreg(15,0);   //Sensor 2: Power factor
-
-    /*Error flags*/
-    modbustcp_s.addHreg(16,0);   //Sensor 1 error (if error then 1)
-    modbustcp_s.addHreg(17,0);  //Sensor 2 error 
-    modbustcp_s.addHreg(18,0);  //Sensor 1 counter (max 15)
-    modbustcp_s.addHreg(19,0);  //Sensor 2 counter
-
-    /*Uptime count*/
-    modbustcp_s.addHreg(20,0);
-
+    
     Thread::wait(1000);
 
     for(;;)
     {
         LedYellow = !LedYellow.read(); //Status led
         rd_result = modbusrtu_m_s1.readHoldingRegisters(0x00, 0x16);
-        /*After every read, count up 1 to 15*/
-        if(counter_s1 == 16) counter_s1 = 0;
-        modbustcp_s.Hreg(18,counter_s1++);
+        /*After every read, count up 1 to 255*/
+        modbustcp_s.Hreg(SEN1_COUN, counter_s1++); //Sensor 1 counter (max 15)
+        // if(counter_s1 == 255) counter_s1 = 0; //no need
 
         if (rd_result == modbusrtu_m_s1.ku8MBSuccess)
         {
@@ -181,69 +180,71 @@ void task_modbus_rtu_tcp_sync()
             uint32_t l_total_energy_s1 = (uint32_t)MBdata_s1[0x00]<<16|MBdata_s1[0x01];
             
             /*Sync TCP with RTU*/
-            modbustcp_s.Hreg(0,MBdata_s1[0x11]);
-            modbustcp_s.Hreg(1,MBdata_s1[0x0C]);
-            modbustcp_s.Hreg(2,MBdata_s1[0x0D]);
-            modbustcp_s.Hreg(3,MBdata_s1[0x00]);
-            modbustcp_s.Hreg(4,MBdata_s1[0x01]);
-            modbustcp_s.Hreg(5,MBdata_s1[0x0E]);
-            modbustcp_s.Hreg(6,MBdata_s1[0x0F]);
-            modbustcp_s.Hreg(7,MBdata_s1[0x10]);
-            modbustcp_s.Hreg(16,0);
+            modbustcp_s.Hreg(SEN1_FREQ, MBdata_s1[0x11]); //Sensor 1: Frequency
+            modbustcp_s.Hreg(SEN1_VOLT, MBdata_s1[0x0C]); //Sensor 1: Voltage
+            modbustcp_s.Hreg(SEN1_CURR, MBdata_s1[0x0D]); //Sensor 1: Current
+            modbustcp_s.Hreg(SEN1_ENGH, MBdata_s1[0x00]); //Sensor 1: Total energy high byte
+            modbustcp_s.Hreg(SEN1_ENGL, MBdata_s1[0x01]); //Sensor 1: Total energy low byte
+            modbustcp_s.Hreg(SEN1_ACTV, MBdata_s1[0x0E]); //Sensor 1: Active power
+            modbustcp_s.Hreg(SEN1_REAV, MBdata_s1[0x0F]); //Sensor 1: Reactive power
+            modbustcp_s.Hreg(SEN1_PWFR, MBdata_s1[0x10]); //Sensor 1: Power factor
+            modbustcp_s.Hreg(SEN1_ERRO, 0); //Sensor 1 error (if error then 1)
 
             /*Print to debug*/
-            
-            // pc.printf("Freq: %.02f Hz | Volt: %.01f V | Curr: %.02f A | Total: %.02f KWh | Act: %.03f KW | Rea: %.03f Kvar | PF: %.03f\r\r\n",
-            //     ((float)MBdata_s1[0x11])*0.01,                 //Frequency
-            //     ((float)MBdata_s1[0x0C])*0.1,                  //Voltage
-            //     ((float)MBdata_s1[0x0D])*0.01,                 //Current
-            //     ((float)l_total_energy_s1)*0.01,               //Total energy
-            //     ((float)((int16_t)MBdata_s1[0x0E]))*0.001,     //Active power
-            //     ((float)((int16_t)MBdata_s1[0x0F]))*0.001,     //Reactive power
-            //     ((float)MBdata_s1[0x10])*0.001);                //Power Factor
+            #define MB_DEBUG
 
+            #ifdef MB_DEBUG
+            pc.printf("Freq: %.02f Hz | Volt: %.01f V | Curr: %.02f A | Total: %.02f KWh | Act: %.03f KW | Rea: %.03f Kvar | PF: %.03f\r\r\n",
+                ((float)MBdata_s1[0x11])*0.01,                 //Frequency
+                ((float)MBdata_s1[0x0C])*0.1,                  //Voltage
+                ((float)MBdata_s1[0x0D])*0.01,                 //Current
+                ((float)l_total_energy_s1)*0.01,               //Total energy
+                ((float)((int16_t)MBdata_s1[0x0E]))*0.001,     //Active power
+                ((float)((int16_t)MBdata_s1[0x0F]))*0.001,     //Reactive power
+                ((float)MBdata_s1[0x10])*0.001);                //Power Factor
+            #endif
             // pc.printf("S1: Success\r\r\n");
         }
         else
         {
-            modbustcp_s.Hreg(16,1);
+            modbustcp_s.Hreg(SEN1_ERRO,1);
             // pc.printf("S1: Fail\r\r\n");
         }
 
         Thread::wait(100);
 
         rd_result = modbusrtu_m_s2.readHoldingRegisters(0x00, 0x16);
-        /*After every read, count up 1 to 15*/
-        if(counter_s2 == 16) counter_s2 = 0;
-        modbustcp_s.Hreg(19,counter_s2++);
+        /*After every read, count up 1 to 255*/
+        modbustcp_s.Hreg(SEN2_COUN, counter_s2++); //Sensor 2 counter
+        // if(counter_s2 == 255) counter_s2 = 0; // no need because of 8bit
 
         if (rd_result == modbusrtu_m_s2.ku8MBSuccess)
         {
             /*Get data from S2*/
             for(int i=0x00;i<0x16;i++) MBdata_s2[i] = modbusrtu_m_s2.getResponseBuffer(i);
-            uint32_t l_total_energy_s2 = (uint32_t)MBdata_s2[0x00]<<16|MBdata_s2[0x01];
 
             /*Sync TCP with RTU*/
-            modbustcp_s.Hreg(8,MBdata_s1[0x11]);
-            modbustcp_s.Hreg(9,MBdata_s1[0x0C]);
-            modbustcp_s.Hreg(10,MBdata_s1[0x0D]);
-            modbustcp_s.Hreg(11,MBdata_s1[0x00]);
-            modbustcp_s.Hreg(12,MBdata_s1[0x01]);
-            modbustcp_s.Hreg(13,MBdata_s1[0x0E]);
-            modbustcp_s.Hreg(14,MBdata_s1[0x0F]);
-            modbustcp_s.Hreg(15,MBdata_s1[0x10]);
-            modbustcp_s.Hreg(17,0);
+            modbustcp_s.Hreg(SEN2_FREQ, MBdata_s2[0x11]); //Sensor 2: Frequency
+            modbustcp_s.Hreg(SEN2_VOLT, MBdata_s2[0x0C]); //Sensor 2: Voltage
+            modbustcp_s.Hreg(SEN2_CURR, MBdata_s2[0x0D]); //Sensor 2: Current
+            modbustcp_s.Hreg(SEN2_ENGH, MBdata_s2[0x00]); //Sensor 2: Total energy high byte
+            modbustcp_s.Hreg(SEN2_ENGL, MBdata_s2[0x01]); //Sensor 2: Total energy low byte
+            modbustcp_s.Hreg(SEN2_ACTV, MBdata_s2[0x0E]); //Sensor 2: Active power
+            modbustcp_s.Hreg(SEN2_REAV, MBdata_s2[0x0F]); //Sensor 2: Reactive power
+            modbustcp_s.Hreg(SEN2_PWFR, MBdata_s2[0x10]); //Sensor 2: Power factor
+            modbustcp_s.Hreg(SEN2_ERRO, 0); //Sensor 2 error 
 
             // pc.printf("S2: Success\r\r\n");
         }
         else
         {
-            modbustcp_s.Hreg(17,1);
+            modbustcp_s.Hreg(SEN2_ERRO,1);  //Sensor 2 error 
             // pc.printf("S2: Fail\r\r\n");
         }
 
-        modbustcp_s.Hreg(20,uptime_count);
-
+        modbustcp_s.Hreg(20,(uint16_t)(uptime_count >> 16)); //high byte
+        modbustcp_s.Hreg(21,(uint16_t)(uptime_count && 0xFFFF)); //low byte
+ 
         Thread::wait(100);
     }  
 }
