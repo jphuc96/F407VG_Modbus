@@ -9,6 +9,9 @@
 #include "Arial12x12.h"
 #include "Arial24x23.h"
 
+#define ETH_IP      "192.168.0.107"
+#define ETH_SUBNET  "255.255.255.0"
+#define ETH_GATEWAY "192.168.0.1"
 
 #define PIN_MOSI        PB_5
 #define PIN_MISO        PB_4
@@ -91,7 +94,10 @@ int main()
     pc.printf("===========================\r\r\n");
 
     pc.printf("Initializing EthernetInterface.\r\r\n");
+
+    eth.set_network(ETH_IP,ETH_SUBNET,ETH_GATEWAY);
     eth.connect();
+
     pc.printf("MAC: %s\r\r\n",eth.get_mac_address());
     pc.printf("IP: %s\r\r\n",eth.get_ip_address());
     pc.printf("Port: %d\r\r\n",MBTCP_PORT);
